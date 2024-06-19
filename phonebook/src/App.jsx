@@ -1,11 +1,32 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
-const ShowPerson = ({person}) => <li>{person.name} {person.number}</li>
+import phoneService from './services/ppl'
 
-const Directory = ({people}) => {
+const ShowPerson = ({person, updater}) => {
+  
+  const delHandler = (event) => {
+    event.preventDefault()
+
+    if (confirm(`Delete ${person.name}?`)){
+      phoneService
+      .del(person.id)
+      .then(newPeople => {
+        updater()
+      })
+    }
+
+    
+  }
+  
+  return (
+  <li>{person.name} {person.number}  <button onClick={delHandler}>delete</button></li>
+  )
+}
+
+const Directory = ({people, updater}) => {
   return (
   <ul>
-    {people.map(person => <ShowPerson key={people.indexOf(person)} person={person} />)}
+    {people.map(person => <ShowPerson key={people.indexOf(person)} person={person} updater = {updater}/>)}
   </ul>
   )
 }
@@ -26,19 +47,47 @@ const PersonForm = (props) => {
 </form>
   )
 }
+
+const Notification = ({ message }) => {
+  if (message === null) {
+    return null
+  }
+
+  const notificationStyle = {
+    color: 'green',
+    background: 'lightgrey',
+    fontSize: 20,
+    borderStyle: 'solid',
+    borderRadius: 5,
+    padding: 10,
+    marginBottom: 10
+  }
+
+  return (
+    <div className='error' style={notificationStyle}>
+      {message}
+    </div>
+  )
+}
+
 const App = () => {
   
-  const [persons, setPersons] = useState([
-    { name: 'Arto Hellas', number: '040-123456', id: 1 },
-    { name: 'Ada Lovelace', number: '39-44-5323523', id: 2 },
-    { name: 'Dan Abramov', number: '12-43-234345', id: 3 },
-    { name: 'Mary Poppendieck', number: '39-23-6423122', id: 4 }
-  ])
+  const [persons, setPersons] = useState([])
   
   const [newName, setNewName] = useState('')
   const [newNumber, setNewNumber] = useState('')
   const [searchWord, setSearchWord] = useState('')
   const [filteredList, setfilteredList] = useState(persons)
+  const [addMessage, setAddMessage] = useState(null)
+
+  useEffect(() => {
+    phoneService
+    .getAll()
+    .then(initialPeople => {
+      setPersons(initialPeople)
+      setfilteredList(initialPeople)
+    })
+  }, [])
 
 
 
@@ -66,21 +115,43 @@ const App = () => {
     }
 
     const checkArr = persons.filter((person) => person.name === tempPerson.name)
-    
     checkArr.length === 1 ? 
     alert(`${newName} is already added to phonebook`) : 
-    setPersons(persons.concat(tempPerson))
+    
+    phoneService
+      .create(tempPerson)
+      .then(returnPerson => {
+        setPersons(persons.concat(returnPerson))
+        setfilteredList(filteredList.concat(returnPerson))
+        setNewName('')
+        setNewNumber('')
+        setAddMessage(`Added ${tempPerson.name}`)
+        setTimeout(() => {
+          setAddMessage(null)
+        },5000)
+      })
+    
 
-    setfilteredList(filteredList.concat(tempPerson))
-    setNewName('')
-    setNewNumber('')
 
   }
+
+  const updateAfterDeletion = () => {
+    phoneService
+    .getAll()
+    .then(initialPeople => {
+      setPersons(initialPeople)
+      setfilteredList(initialPeople)
+    })
+  }
+
+
 
   
   return (
     <div>
       <h2>Phonebook</h2>
+
+      <Notification message={addMessage}/>
 
       <div>
         filter shown with <input value={searchWord} onChange={handleSearch} />
@@ -91,7 +162,7 @@ const App = () => {
         <PersonForm handleSubmit = {handleSubmit} newName = {newName} handleNameChange = {handleNameChange} newNumber = {newNumber} handleNumberChange = {handleNumberChange}/>
 
       <h2>Numbers</h2>
-        <Directory people = {filteredList}/>
+        <Directory people = {filteredList} updater = {updateAfterDeletion}/>
     </div>
   )
 }
